@@ -1,23 +1,186 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { 
-  BookOpen, 
-  Sparkles, 
-  CheckCircle2, 
-  Award, 
-  Zap, 
-  Search, 
-  ListFilter, 
-  X, 
-  Info, 
-  User, 
-  Building, 
-  Calendar, 
+import { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence, useAnimation } from "framer-motion";
+import {
+  BookOpen,
+  Sparkles,
+  CheckCircle2,
+  Search,
+  ListFilter,
+  X,
+  Info,
+  User,
+  Building,
+  Calendar,
   FileText,
-  ChevronRight
+  ArrowRight,
+  Check,
+  ChevronDown,
 } from "lucide-react";
+
+/* ---------- Helper tampilan (tidak menyentuh logika data) ---------- */
+const CONTOH_KATA_KUNCI = [
+  "belajar koding python",
+  "kecerdasan buatan",
+  "manajemen bisnis",
+  "jurnal pendidikan",
+];
+
+const TINGGI_RAK = [62, 80, 70, 92, 66, 84, 74, 58, 88, 72];
+
+// Warna sampul dibuat konsisten dari nama kategori
+const hueDariTeks = (teks = "") => {
+  let h = 0;
+  for (const ch of teks) h = (h * 31 + ch.charCodeAt(0)) % 360;
+  return h;
+};
+
+const PLACEHOLDER = [
+  "saya ingin belajar koding python",
+  "buku tentang kecerdasan buatan",
+  "jurnal metode penelitian kuantitatif",
+  "strategi memulai bisnis kecil",
+];
+
+const chipsVar = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.06, delayChildren: 0.1 } },
+};
+const chipVar = {
+  hidden: { opacity: 0, y: 10, scale: 0.9 },
+  show: { opacity: 1, y: 0, scale: 1 },
+};
+
+/* Dropdown buku kustom: bisa dicari, animasi buka-tutup */
+function PilihBuku({ daftar, value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e) => ref.current && !ref.current.contains(e.target) && setOpen(false);
+    const onKey = (e) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const terpilih = daftar.find((b) => String(b.id_buku) === String(value));
+  const tersaring = daftar.filter((b) =>
+    `${b.judul} ${b.kategori}`.toLowerCase().includes(q.toLowerCase())
+  );
+
+  return (
+    <div ref={ref} style={{ flex: 1, minWidth: 0 }}>
+      <button
+        type="button"
+        className="dd-trigger"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        disabled={daftar.length === 0}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span className="dot" style={{ "--h": hueDariTeks(terpilih?.kategori) }} />
+        <span className="t">
+          <strong>{terpilih ? terpilih.judul : "Memuat daftar buku…"}</strong>
+          {terpilih && <small>{terpilih.kategori}</small>}
+        </span>
+        <motion.span animate={{ rotate: open ? 180 : 0 }} style={{ display: "flex" }}>
+          <ChevronDown size={20} />
+        </motion.span>
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            className="dd-pop"
+            initial={{ opacity: 0, y: -8, scaleY: 0.92 }}
+            animate={{ opacity: 1, y: 0, scaleY: 1 }}
+            exit={{ opacity: 0, y: -8, scaleY: 0.92 }}
+            transition={{ type: "spring", stiffness: 420, damping: 32 }}
+          >
+            <div className="dd-search">
+              <Search size={16} />
+              <input
+                autoFocus
+                placeholder="Cari judul atau kategori…"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+              />
+            </div>
+            <ul className="dd-list" role="listbox">
+              {tersaring.length === 0 && <li className="dd-none">Buku tidak ditemukan.</li>}
+              {tersaring.map((b, i) => (
+                <motion.li
+                  key={b.id_buku}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: Math.min(i, 8) * 0.025 }}
+                >
+                  <button
+                    type="button"
+                    role="option"
+                    className="dd-opt"
+                    aria-selected={String(b.id_buku) === String(value)}
+                    onClick={() => {
+                      onChange(b.id_buku.toString());
+                      setOpen(false);
+                      setQ("");
+                    }}
+                  >
+                    <span className="dot" style={{ "--h": hueDariTeks(b.kategori) }} />
+                    <span className="txt">
+                      <strong>{b.judul}</strong>
+                      <small>{b.kategori}</small>
+                    </span>
+                    {String(b.id_buku) === String(value) && <Check size={16} color="var(--accent)" />}
+                  </button>
+                </motion.li>
+              ))}
+            </ul>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+const Sampul = ({ buku }) => (
+  <div className="cover" style={{ "--h": hueDariTeks(buku.kategori) }} aria-hidden="true">
+    {(buku.judul || "?").charAt(0).toUpperCase()}
+  </div>
+);
+
+const Lingkaran = ({ skor, persen }) => {
+  const R = 22;
+  const C = 2 * Math.PI * R;
+  const isi = Math.min(Math.max(skor, 0), 1);
+  return (
+    <div className={`ring ${persen > 20 ? "hi" : ""}`} title={`${persen}% kemiripan`}>
+      <svg viewBox="0 0 56 56" width="56" height="56" aria-hidden="true">
+        <circle className="track" cx="28" cy="28" r={R} fill="none" strokeWidth="5" />
+        <motion.circle
+          className="fill"
+          cx="28"
+          cy="28"
+          r={R}
+          fill="none"
+          strokeWidth="5"
+          strokeDasharray={C}
+          initial={{ strokeDashoffset: C }}
+          animate={{ strokeDashoffset: C * (1 - isi) }}
+          transition={{ duration: 0.9, ease: "easeOut" }}
+        />
+      </svg>
+      <b>{persen}%</b>
+    </div>
+  );
+};
 
 export default function Home() {
   const [mode, setMode] = useState("text");
@@ -29,6 +192,12 @@ export default function Home() {
 
   // State untuk Pop-up Modal Detail Buku
   const [selectedBookDetail, setSelectedBookDetail] = useState(null);
+
+  // State tambahan khusus tampilan form
+  const [fokus, setFokus] = useState(false);
+  const [phIdx, setPhIdx] = useState(0);
+  const inputRef = useRef(null);
+  const kontrol = useAnimation();
 
   useEffect(() => {
     fetch("http://127.0.0.1:8000/api/buku")
@@ -58,7 +227,7 @@ export default function Home() {
         res = await fetch("http://127.0.0.1:8000/api/rekomendasi/search", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ teks: inputTeks })
+          body: JSON.stringify({ teks: inputTeks }),
         });
         data = await res.json();
       }
@@ -70,411 +239,463 @@ export default function Home() {
     }
   };
 
+  // Placeholder berganti otomatis
+  useEffect(() => {
+    const t = setInterval(() => setPhIdx((i) => (i + 1) % PLACEHOLDER.length), 3200);
+    return () => clearInterval(t);
+  }, []);
+
+  // Tekan "/" untuk langsung mengetik
+  useEffect(() => {
+    const onKey = (e) => {
+      const tag = document.activeElement?.tagName;
+      if (e.key === "/" && !["INPUT", "TEXTAREA", "SELECT"].includes(tag)) {
+        e.preventDefault();
+        inputRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Bungkus handleCari: getarkan kolom jika kosong, lalu jalankan logika asli
+  const kirim = () => {
+    if (mode === "text" && !inputTeks.trim()) {
+      kontrol.start({ x: [0, -9, 9, -6, 6, 0], transition: { duration: 0.4 } });
+    }
+    handleCari();
+  };
+
+  const pilihContoh = (k) => {
+    setInputTeks(k);
+    inputRef.current?.focus();
+  };
+
+  const terpilihAktif = daftarBuku.find((b) => String(b.id_buku) === String(idBuku));
+  const aktif = fokus || loading;
+
+  // Tutup modal dengan tombol Esc + kunci scroll halaman saat modal terbuka
+  useEffect(() => {
+    if (!selectedBookDetail) return;
+    const onKey = (e) => e.key === "Escape" && setSelectedBookDetail(null);
+    window.addEventListener("keydown", onKey);
+    const lama = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = lama;
+    };
+  }, [selectedBookDetail]);
+
+  const ganti = (m) => {
+    setMode(m);
+    setHasil(null);
+  };
+
   return (
-    <div style={{
-      minHeight: "100vh",
-      backgroundColor: "#030712",
-      color: "#f3f4f6",
-      fontFamily: "'Inter', sans-serif",
-      display: "flex",
-      justifyContent: "center",
-      alignItems: "center",
-      padding: "40px 20px",
-      position: "relative",
-      overflow: "hidden"
-    }}>
-      
-      {/* Background Grid Pattern */}
-      <div style={{
-        position: "absolute",
-        inset: 0,
-        backgroundImage: `
-          linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-          linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px)
-        `,
-        backgroundSize: "40px 40px",
-        maskImage: "radial-gradient(ellipse at center, black 40%, transparent 80%)",
-        WebkitMaskImage: "radial-gradient(ellipse at center, black 40%, transparent 80%)",
-        pointerEvents: "none",
-        zIndex: 0
-      }} />
+    <div className="app">
+      <div className="wrap">
+        {/* ===== Header ===== */}
+        <header className="topbar">
+          <div className="brand">
+            <span className="brand-mark">
+              <BookOpen size={20} />
+            </span>
+            Pustaka Pintar
+          </div>
+          <span className="badge">Gemini + TF-IDF</span>
+        </header>
 
-      {/* Aurora Blobs */}
-      <motion.div
-        animate={{ x: [-50, 50, -50], y: [-30, 30, -30], scale: [1, 1.2, 1] }}
-        transition={{ repeat: Infinity, duration: 15, ease: "easeInOut" }}
-        style={{
-          position: "absolute", top: "10%", left: "15%", width: "400px", height: "400px",
-          background: "radial-gradient(circle, rgba(99, 102, 241, 0.3) 0%, rgba(0,0,0,0) 70%)",
-          filter: "blur(60px)", pointerEvents: "none", zIndex: 0
-        }}
-      />
-      <motion.div
-        animate={{ x: [40, -40, 40], y: [40, -40, 40], scale: [1.2, 1, 1.2] }}
-        transition={{ repeat: Infinity, duration: 18, ease: "easeInOut" }}
-        style={{
-          position: "absolute", bottom: "10%", right: "15%", width: "450px", height: "450px",
-          background: "radial-gradient(circle, rgba(168, 85, 247, 0.25) 0%, rgba(0,0,0,0) 70%)",
-          filter: "blur(70px)", pointerEvents: "none", zIndex: 0
-        }}
-      />
+        {/* ===== Hero + Pencarian ===== */}
+        <section className="hero">
+          <div>
+            <h1>Temukan bacaan yang nyambung dengan minatmu.</h1>
+            <p className="lead">
+              Ketik topik atau pilih satu buku. Sistem mencari buku dan jurnal lain yang
+              isinya paling berkaitan.
+            </p>
 
-      {/* Main Container */}
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.6 }}
-        style={{
-          width: "100%", maxWidth: "850px", backgroundColor: "rgba(15, 23, 42, 0.82)",
-          backdropFilter: "blur(20px)", border: "1px solid rgba(255, 255, 255, 0.12)",
-          borderRadius: "24px", padding: "30px 40px", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.8)",
-          position: "relative", zIndex: 1
-        }}
-      >
-        {/* Animated Glowing AI Orb */}
-        <div style={{ height: "150px", width: "100%", marginBottom: "10px", display: "flex", justifyContent: "center", alignItems: "center", position: "relative" }}>
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ repeat: Infinity, duration: 12, ease: "linear" }}
-            style={{ position: "absolute", width: "130px", height: "130px", borderRadius: "50%", border: "2px dashed rgba(99, 102, 241, 0.4)" }}
-          />
-          <motion.div
-            animate={{ scale: [1, 1.12, 1], boxShadow: ["0 0 20px rgba(99, 102, 241, 0.4)", "0 0 45px rgba(168, 85, 247, 0.7)", "0 0 20px rgba(99, 102, 241, 0.4)"] }}
-            transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
-            style={{ width: "85px", height: "85px", borderRadius: "50%", background: "radial-gradient(circle at 30% 30%, #818cf8, #4f46e5 60%, #312e81)", display: "flex", justifyContent: "center", alignItems: "center" }}
-          >
-            <BookOpen size={34} color="#ffffff" />
-          </motion.div>
-        </div>
-
-        {/* Title */}
-        <div style={{ textAlign: "center", marginBottom: "20px" }}>
-          <h1 style={{ fontSize: "28px", fontWeight: "800", margin: "0 0 8px 0", background: "linear-gradient(to right, #818cf8, #c084fc)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-            Sistem Rekomendasi Buku & Jurnal
-          </h1>
-          <p style={{ color: "#94a3b8", fontSize: "14px", margin: 0 }}>
-            Eksplorasi keterkaitan antar-dokumen dengan analisis LLM Gemini & TF-IDF.
-          </p>
-        </div>
-
-        {/* Mode Switcher Tabs */}
-        <div style={{ display: "flex", justifyContent: "center", gap: "10px", marginBottom: "15px" }}>
-          <button
-            onClick={() => { setMode("text"); setHasil(null); }}
-            style={{
-              padding: "8px 16px", borderRadius: "20px", border: "1px solid #334155",
-              backgroundColor: mode === "text" ? "#4f46e5" : "#0f172a",
-              color: mode === "text" ? "#fff" : "#94a3b8", cursor: "pointer", fontSize: "13px",
-              display: "flex", alignItems: "center", gap: "6px"
-            }}
-          >
-            <Search size={14} /> Ketik Kata Kunci / Topik
-          </button>
-          <button
-            onClick={() => { setMode("dropdown"); setHasil(null); }}
-            style={{
-              padding: "8px 16px", borderRadius: "20px", border: "1px solid #334155",
-              backgroundColor: mode === "dropdown" ? "#4f46e5" : "#0f172a",
-              color: mode === "dropdown" ? "#fff" : "#94a3b8", cursor: "pointer", fontSize: "13px",
-              display: "flex", alignItems: "center", gap: "6px"
-            }}
-          >
-            <ListFilter size={14} /> Pilih dari Daftar Buku
-          </button>
-        </div>
-
-        {/* Form Selection */}
-        <div style={{ display: "flex", gap: "12px", marginBottom: "25px", backgroundColor: "#0f172a", padding: "10px", borderRadius: "16px", border: "1px solid rgba(255, 255, 255, 0.08)" }}>
-          {mode === "dropdown" ? (
-            <select 
-              value={idBuku} 
-              onChange={(e) => setIdBuku(e.target.value)}
-              style={{ flex: 1, padding: "12px 16px", fontSize: "14px", color: "#f8fafc", backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: "12px", outline: "none", cursor: "pointer" }}
-            >
-              {daftarBuku.map((b) => (
-                <option key={b.id_buku} value={b.id_buku}>
-                  [{b.kategori}] {b.judul}
-                </option>
+            <div className="shelf" aria-hidden="true">
+              {TINGGI_RAK.map((h, i) => (
+                <span key={i} className="spine" style={{ "--h": h, "--i": i }} />
               ))}
-            </select>
-          ) : (
-            <input
-              type="text"
-              placeholder="Contoh: Saya ingin belajar koding python..."
-              value={inputTeks}
-              onChange={(e) => setInputTeks(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleCari()}
-              style={{ flex: 1, padding: "12px 16px", fontSize: "14px", color: "#f8fafc", backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: "12px", outline: "none" }}
-            />
-          )}
+            </div>
+          </div>
 
-          <motion.button 
-            whileHover={{ scale: 1.04, boxShadow: "0 0 20px rgba(99, 102, 241, 0.6)" }}
-            whileTap={{ scale: 0.96 }}
-            onClick={handleCari}
-            disabled={loading}
-            style={{ padding: "12px 28px", background: "linear-gradient(135deg, #6366f1, #4f46e5)", color: "white", border: "none", cursor: loading ? "not-allowed" : "pointer", borderRadius: "12px", fontWeight: "600", fontSize: "14px", display: "flex", alignItems: "center", gap: "8px" }}
+          <motion.div
+            className="panel"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.25 }}
           >
-            {loading ? <span>Memproses...</span> : <><Zap size={16} color="#ffd700" /><span>Cari AI</span></>}
-          </motion.button>
-        </div>
+            <div className="tabs" role="tablist" aria-label="Cara mencari">
+              <button
+                role="tab"
+                aria-selected={mode === "text"}
+                className="tab"
+                onClick={() => ganti("text")}
+              >
+                {mode === "text" && (
+                  <motion.span
+                    layoutId="pill"
+                    className="tab-pill"
+                    transition={{ type: "spring", stiffness: 420, damping: 34 }}
+                  />
+                )}
+                <Search size={16} /> Ketik topik
+              </button>
+              <button
+                role="tab"
+                aria-selected={mode === "dropdown"}
+                className="tab"
+                onClick={() => ganti("dropdown")}
+              >
+                {mode === "dropdown" && (
+                  <motion.span
+                    layoutId="pill"
+                    className="tab-pill"
+                    transition={{ type: "spring", stiffness: 420, damping: 34 }}
+                  />
+                )}
+                <ListFilter size={16} /> Pilih buku
+              </button>
+            </div>
 
-        {/* Hasil Rekomendasi */}
-        <AnimatePresence mode="wait">
-          {hasil && (
-            <motion.div 
-              initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -15 }} transition={{ duration: 0.4 }}
-              style={{ borderTop: "1px solid #334155", paddingTop: "20px" }}
-            >
-              <div style={{ display: "flex", alignItems: "flex-start", gap: "10px", marginBottom: "20px", backgroundColor: "rgba(99, 102, 241, 0.12)", padding: "12px 18px", borderRadius: "12px", border: "1px solid rgba(99, 102, 241, 0.25)" }}>
-                <CheckCircle2 size={18} color="#818cf8" style={{ marginTop: "2px", flexShrink: 0 }} />
-                <span style={{ fontSize: "14px", color: "#cbd5e1", lineHeight: "1.5" }}>
-                  <strong style={{ color: "#a5b4fc" }}>{hasil.buku_acuan}</strong>
-                </span>
+            <motion.div className="composer" animate={kontrol}>
+              <div className="composer-ring">
+                <motion.div
+                  className="composer-glow"
+                  animate={{ rotate: 360, opacity: aktif ? 1 : 0.3 }}
+                  transition={{
+                    rotate: { repeat: Infinity, ease: "linear", duration: loading ? 2.5 : 8 },
+                    opacity: { duration: 0.3 },
+                  }}
+                />
               </div>
 
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
-                <h3 style={{ fontSize: "15px", fontWeight: "600", margin: 0, color: "#e2e8f0", display: "flex", alignItems: "center", gap: "8px" }}>
-                  <Sparkles size={18} color="#c084fc" /> Hasil Rekomendasi Terkait:
-                </h3>
-                <span style={{ fontSize: "12px", color: "#64748b" }}>(Klik kartu untuk detail)</span>
-              </div>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                {hasil.rekomendasi && hasil.rekomendasi.map((buku, index) => {
-                  const persentase = (buku.skor_kemiripan * 100).toFixed(0);
-
-                  return (
-                    <motion.div 
-                      key={buku.id_buku}
-                      initial={{ opacity: 0, x: -30 }} 
-                      animate={{ opacity: 1, x: 0 }} 
-                      transition={{ duration: 0.3, delay: index * 0.12 }}
-                      whileHover={{ 
-                        y: -4,
-                        scale: 1.01,
-                        backgroundColor: "#162032",
-                        borderColor: "#6366f1",
-                        boxShadow: "0 12px 30px -8px rgba(99, 102, 241, 0.35)"
-                      }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => setSelectedBookDetail(buku)}
-                      style={{ 
-                        border: "1px solid #334155", 
-                        borderRadius: "14px", 
-                        padding: "16px 20px", 
-                        backgroundColor: "#0f172a", 
-                        transition: "border-color 0.2s, background-color 0.2s",
-                        cursor: "pointer",
-                        position: "relative"
-                      }}
+              <div className="composer-inner">
+                <AnimatePresence mode="wait" initial={false}>
+                  {mode === "text" ? (
+                    <motion.div
+                      key="t"
+                      className="slot"
+                      initial={{ opacity: 0, x: -14 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 14 }}
+                      transition={{ duration: 0.18 }}
                     >
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
-                        <div>
-                          <h4 style={{ margin: "0 0 6px 0", fontSize: "16px", color: "#f8fafc", fontWeight: "600", display: "flex", alignItems: "center", gap: "6px" }}>
-                            {buku.judul}
-                            <ChevronRight size={16} color="#818cf8" style={{ opacity: 0.7 }} />
-                          </h4>
-                          <span style={{ fontSize: "11px", padding: "4px 10px", borderRadius: "20px", backgroundColor: "#1e293b", color: "#94a3b8", border: "1px solid #334155" }}>
-                            {buku.kategori}
-                          </span>
-                        </div>
+                      <motion.span
+                        className="lead-ic"
+                        style={{ display: "flex" }}
+                        animate={{ scale: fokus ? 1.15 : 1, rotate: fokus ? -8 : 0 }}
+                      >
+                        <Search size={20} />
+                      </motion.span>
 
-                        <div style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 12px", borderRadius: "12px", backgroundColor: "rgba(16, 185, 129, 0.15)", color: "#34d399", fontWeight: "700", fontSize: "13px", border: "1px solid rgba(16, 185, 129, 0.3)" }}>
-                          <Award size={14} /> {persentase}% Match
-                        </div>
-                      </div>
-
-                      {/* Progress Bar */}
-                      <div style={{ width: "100%", height: "6px", backgroundColor: "#1e293b", borderRadius: "10px", overflow: "hidden", marginTop: "12px" }}>
-                        <motion.div 
-                          initial={{ width: 0 }} animate={{ width: `${persentase}%` }} transition={{ duration: 0.8, delay: index * 0.15 }}
-                          style={{ height: "100%", background: persentase > 20 ? "linear-gradient(to right, #10b981, #34d399)" : "linear-gradient(to right, #6366f1, #818cf8)", borderRadius: "10px" }}
+                      <div className="input-wrap">
+                        <input
+                          ref={inputRef}
+                          type="text"
+                          aria-label="Kata kunci atau topik"
+                          value={inputTeks}
+                          onChange={(e) => setInputTeks(e.target.value)}
+                          onFocus={() => setFokus(true)}
+                          onBlur={() => setFokus(false)}
+                          onKeyDown={(e) => e.key === "Enter" && kirim()}
                         />
+                        {!inputTeks && (
+                          <AnimatePresence mode="wait">
+                            <motion.span
+                              key={phIdx}
+                              className="ph"
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: -10 }}
+                              transition={{ duration: 0.25 }}
+                            >
+                              Coba: {PLACEHOLDER[phIdx]}
+                            </motion.span>
+                          </AnimatePresence>
+                        )}
                       </div>
+
+                      <AnimatePresence mode="wait" initial={false}>
+                        {inputTeks ? (
+                          <motion.button
+                            key="x"
+                            type="button"
+                            className="icon-btn sm"
+                            aria-label="Hapus teks"
+                            initial={{ scale: 0, rotate: -90 }}
+                            animate={{ scale: 1, rotate: 0 }}
+                            exit={{ scale: 0, rotate: 90 }}
+                            whileTap={{ scale: 0.85 }}
+                            onClick={() => {
+                              setInputTeks("");
+                              inputRef.current?.focus();
+                            }}
+                          >
+                            <X size={15} />
+                          </motion.button>
+                        ) : (
+                          <motion.kbd
+                            key="k"
+                            className="kbd"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                          >
+                            /
+                          </motion.kbd>
+                        )}
+                      </AnimatePresence>
                     </motion.div>
-                  );
-                })}
+                  ) : (
+                    <motion.div
+                      key="d"
+                      className="slot"
+                      initial={{ opacity: 0, x: 14 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -14 }}
+                      transition={{ duration: 0.18 }}
+                    >
+                      <PilihBuku daftar={daftarBuku} value={idBuku} onChange={setIdBuku} />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <motion.button
+                  className="btn go"
+                  onClick={kirim}
+                  disabled={loading}
+                  initial="rest"
+                  whileHover="hover"
+                  whileTap="tap"
+                  variants={{ rest: { scale: 1 }, hover: { scale: 1.04 }, tap: { scale: 0.95 } }}
+                >
+                  {loading ? (
+                    <>
+                      <span className="spinner" /> Mencari…
+                    </>
+                  ) : (
+                    <>
+                      Cari
+                      <motion.span variants={{ rest: { x: 0 }, hover: { x: 4 } }}>
+                        <ArrowRight size={18} />
+                      </motion.span>
+                    </>
+                  )}
+                </motion.button>
+
+                <div className="bar-clip">
+                  {loading && (
+                    <motion.span
+                      className="bar"
+                      animate={{ x: ["-100%", "350%"] }}
+                      transition={{ repeat: Infinity, duration: 1.1, ease: "easeInOut" }}
+                    />
+                  )}
+                </div>
               </div>
             </motion.div>
+
+            <AnimatePresence mode="wait" initial={false}>
+              {mode === "text" ? (
+                <motion.div
+                  key="chips"
+                  className="chips"
+                  variants={chipsVar}
+                  initial="hidden"
+                  animate="show"
+                  exit={{ opacity: 0 }}
+                >
+                  {CONTOH_KATA_KUNCI.map((k) => (
+                    <motion.button
+                      key={k}
+                      type="button"
+                      className="chip"
+                      variants={chipVar}
+                      whileHover={{ y: -3, scale: 1.05 }}
+                      whileTap={{ scale: 0.92 }}
+                      onClick={() => pilihContoh(k)}
+                    >
+                      <Sparkles size={13} /> {k}
+                    </motion.button>
+                  ))}
+                </motion.div>
+              ) : (
+                <motion.p
+                  key="hint"
+                  className="hint"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                >
+                  {terpilihAktif
+                    ? `Sistem akan mencari bacaan lain yang paling mirip dengan buku kategori ${terpilihAktif.kategori}.`
+                    : "Pilih satu buku sebagai acuan rekomendasi."}
+                </motion.p>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        </section>
+
+        {/* ===== Hasil ===== */}
+        <section className="results" aria-live="polite">
+          {loading && (
+            <div className="grid" aria-label="Memuat hasil">
+              {[0, 1, 2, 3].map((n) => (
+                <div key={n} className="skeleton" />
+              ))}
+            </div>
           )}
-        </AnimatePresence>
-      </motion.div>
 
-      {/* MODAL POP-UP DESAIN 21ST.DEV (Glow, Glassmorphism, Floating Animation) */}
-      <AnimatePresence>
-        {selectedBookDetail && (
-          <div style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(3, 7, 18, 0.75)",
-            backdropFilter: "blur(12px)",
-            zIndex: 9999,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "20px"
-          }}>
-            {/* Kartu dengan animasi melayang (floating effect dari 21st.dev) */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.85, y: 30 }}
-              animate={{ 
-                opacity: 1, 
-                scale: 1, 
-                y: [0, -8, 0]
-              }}
-              exit={{ opacity: 0, scale: 0.85, y: 30 }}
-              transition={{ 
-                y: { repeat: Infinity, duration: 4, ease: "easeInOut" },
-                opacity: { duration: 0.3 },
-                scale: { duration: 0.3 }
-              }}
-              style={{
-                width: "100%",
-                maxWidth: "520px",
-                backgroundColor: "rgba(15, 23, 42, 0.95)",
-                border: "1px solid rgba(129, 140, 248, 0.3)",
-                borderRadius: "24px",
-                padding: "24px",
-                boxShadow: "0 0 40px rgba(99, 102, 241, 0.25), 0 25px 50px -12px rgba(0, 0, 0, 0.9)",
-                position: "relative",
-                overflow: "hidden"
-              }}
-            >
-              {/* Decorative Animated Grid Graphic (21st.dev Style Header) */}
-              <div style={{
-                position: "relative",
-                height: "90px",
-                borderRadius: "16px",
-                overflow: "hidden",
-                border: "1px solid rgba(255, 255, 255, 0.1)",
-                marginBottom: "20px",
-                background: "radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.2) 0%, rgba(15, 23, 42, 0.8) 100%)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "0 20px"
-              }}>
-                <div style={{
-                  position: "absolute",
-                  inset: 0,
-                  backgroundImage: "linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px)",
-                  backgroundSize: "16px 16px",
-                  opacity: 0.6
-                }} />
+          {!loading && !hasil && (
+            <div className="empty">
+              Hasil rekomendasi akan muncul di sini. Mulai dengan mengetik topik atau
+              memilih buku.
+            </div>
+          )}
 
-                <div style={{ position: "relative", zIndex: 2 }}>
-                  <span style={{
-                    fontSize: "11px",
-                    fontWeight: "600",
-                    color: "#a5b4fc",
-                    padding: "4px 12px",
-                    borderRadius: "20px",
-                    backgroundColor: "rgba(99, 102, 241, 0.2)",
-                    border: "1px solid rgba(129, 140, 248, 0.4)",
-                    backdropFilter: "blur(4px)"
-                  }}>
-                    {selectedBookDetail.kategori}
-                  </span>
-                  <h2 style={{ fontSize: "18px", fontWeight: "700", color: "#ffffff", marginTop: "8px", marginBottom: 0 }}>
-                    {selectedBookDetail.judul}
-                  </h2>
+          <AnimatePresence mode="wait">
+            {!loading && hasil && (
+              <motion.div
+                key="hasil"
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.35 }}
+              >
+                <div className="banner">
+                  <CheckCircle2 size={20} />
+                  <strong>{hasil.buku_acuan}</strong>
                 </div>
 
+                <div className="res-head">
+                  <h2>Rekomendasi terkait</h2>
+                  <span>Ketuk kartu untuk melihat detail</span>
+                </div>
+
+                <div className="grid">
+                  {hasil.rekomendasi &&
+                    hasil.rekomendasi.map((buku, index) => {
+                      const persentase = (buku.skor_kemiripan * 100).toFixed(0);
+
+                      return (
+                        <motion.button
+                          key={buku.id_buku}
+                          className="item"
+                          initial={{ opacity: 0, y: 12 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.3, delay: index * 0.07 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => setSelectedBookDetail(buku)}
+                        >
+                          <Sampul buku={buku} />
+                          <div className="item-body">
+                            <h3>{buku.judul}</h3>
+                            <span className="tag">{buku.kategori}</span>
+                          </div>
+                          <Lingkaran skor={buku.skor_kemiripan} persen={persentase} />
+                        </motion.button>
+                      );
+                    })}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </section>
+      </div>
+
+      <footer className="footer">
+        <div className="wrap">Rekomendasi dihitung dari kemiripan isi dokumen (NLP).</div>
+      </footer>
+
+      {/* ===== MODAL DETAIL BUKU ===== */}
+      <AnimatePresence>
+        {selectedBookDetail && (
+          <motion.div
+            className="overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setSelectedBookDetail(null)}
+          >
+            <motion.div
+              className="sheet"
+              role="dialog"
+              aria-modal="true"
+              aria-label={selectedBookDetail.judul}
+              initial={{ opacity: 0, y: 60 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 60 }}
+              transition={{ type: "spring", stiffness: 320, damping: 30 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="sheet-head">
+                <Sampul buku={selectedBookDetail} />
+                <div>
+                  <span className="tag" style={{ marginTop: 0 }}>
+                    {selectedBookDetail.kategori}
+                  </span>
+                  <h2 style={{ marginTop: 8 }}>{selectedBookDetail.judul}</h2>
+                </div>
                 <button
+                  className="icon-btn"
+                  aria-label="Tutup detail"
                   onClick={() => setSelectedBookDetail(null)}
-                  style={{
-                    position: "relative",
-                    zIndex: 2,
-                    backgroundColor: "rgba(255, 255, 255, 0.1)",
-                    border: "1px solid rgba(255, 255, 255, 0.2)",
-                    color: "#f8fafc",
-                    width: "32px",
-                    height: "32px",
-                    borderRadius: "10px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: "pointer",
-                    backdropFilter: "blur(4px)"
-                  }}
                 >
                   <X size={18} />
                 </button>
               </div>
 
-              {/* Gradient Divider Line */}
-              <div style={{ height: "1px", background: "linear-gradient(to right, transparent, rgba(255,255,255,0.2), transparent)", marginBottom: "20px" }} />
-
-              {/* Grid Atribut Informasi (Glass Card Style) */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "20px" }}>
-                <div style={{ backgroundColor: "rgba(3, 7, 18, 0.6)", padding: "12px", borderRadius: "14px", border: "1px solid rgba(255, 255, 255, 0.08)", display: "flex", alignItems: "center", gap: "10px" }}>
-                  <User size={16} color="#818cf8" />
+              <div className="meta">
+                <div className="meta-item">
+                  <User size={18} />
                   <div>
-                    <span style={{ display: "block", fontSize: "10px", color: "#64748b" }}>Penulis</span>
-                    <span style={{ fontSize: "13px", fontWeight: "600", color: "#e2e8f0" }}>{selectedBookDetail.penulis || "-"}</span>
+                    <small>Penulis</small>
+                    <strong>{selectedBookDetail.penulis || "-"}</strong>
                   </div>
                 </div>
-
-                <div style={{ backgroundColor: "rgba(3, 7, 18, 0.6)", padding: "12px", borderRadius: "14px", border: "1px solid rgba(255, 255, 255, 0.08)", display: "flex", alignItems: "center", gap: "10px" }}>
-                  <Building size={16} color="#818cf8" />
+                <div className="meta-item">
+                  <Building size={18} />
                   <div>
-                    <span style={{ display: "block", fontSize: "10px", color: "#64748b" }}>Penerbit</span>
-                    <span style={{ fontSize: "13px", fontWeight: "600", color: "#e2e8f0" }}>{selectedBookDetail.penerbit || "-"}</span>
+                    <small>Penerbit</small>
+                    <strong>{selectedBookDetail.penerbit || "-"}</strong>
                   </div>
                 </div>
-
-                <div style={{ backgroundColor: "rgba(3, 7, 18, 0.6)", padding: "12px", borderRadius: "14px", border: "1px solid rgba(255, 255, 255, 0.08)", display: "flex", alignItems: "center", gap: "10px" }}>
-                  <Calendar size={16} color="#818cf8" />
+                <div className="meta-item">
+                  <Calendar size={18} />
                   <div>
-                    <span style={{ display: "block", fontSize: "10px", color: "#64748b" }}>Tahun Terbit</span>
-                    <span style={{ fontSize: "13px", fontWeight: "600", color: "#e2e8f0" }}>{selectedBookDetail.tahun_terbit || "-"}</span>
+                    <small>Tahun terbit</small>
+                    <strong>{selectedBookDetail.tahun_terbit || "-"}</strong>
                   </div>
                 </div>
-
-                <div style={{ backgroundColor: "rgba(3, 7, 18, 0.6)", padding: "12px", borderRadius: "14px", border: "1px solid rgba(255, 255, 255, 0.08)", display: "flex", alignItems: "center", gap: "10px" }}>
-                  <FileText size={16} color="#818cf8" />
+                <div className="meta-item">
+                  <FileText size={18} />
                   <div>
-                    <span style={{ display: "block", fontSize: "10px", color: "#64748b" }}>Jumlah Halaman</span>
-                    <span style={{ fontSize: "13px", fontWeight: "600", color: "#e2e8f0" }}>{selectedBookDetail.jumlah_halaman ? `${selectedBookDetail.jumlah_halaman} Hal.` : "-"}</span>
+                    <small>Jumlah halaman</small>
+                    <strong>
+                      {selectedBookDetail.jumlah_halaman
+                        ? `${selectedBookDetail.jumlah_halaman} hal.`
+                        : "-"}
+                    </strong>
                   </div>
                 </div>
               </div>
 
-              {/* Deskripsi Buku */}
-              <div style={{ marginBottom: "20px" }}>
-                <h4 style={{ fontSize: "11px", fontWeight: "600", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
-                  <Info size={14} color="#818cf8" /> Deskripsi Buku
-                </h4>
-                <p style={{ fontSize: "13px", color: "#cbd5e1", lineHeight: "1.6", backgroundColor: "rgba(3, 7, 18, 0.6)", padding: "14px", borderRadius: "14px", border: "1px solid rgba(255, 255, 255, 0.08)", margin: 0, maxHeight: "140px", overflowY: "auto" }}>
-                  {selectedBookDetail.deskripsi || "Tidak ada deskripsi tersedia."}
-                </p>
+              <div className="desc-title">
+                <Info size={16} /> Deskripsi
               </div>
+              <p className="desc">
+                {selectedBookDetail.deskripsi || "Tidak ada deskripsi tersedia."}
+              </p>
 
-              {/* Action Button (Style 21st.dev Glow Button) */}
-              <motion.button
-                whileHover={{ scale: 1.02, boxShadow: "0 0 25px rgba(99, 102, 241, 0.6)" }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setSelectedBookDetail(null)}
-                style={{
-                  width: "100%",
-                  padding: "12px",
-                  background: "linear-gradient(135deg, #6366f1, #4f46e5)",
-                  color: "#ffffff",
-                  border: "none",
-                  borderRadius: "12px",
-                  fontWeight: "600",
-                  fontSize: "14px",
-                  cursor: "pointer"
-                }}
-              >
-                Tutup Detail
-              </motion.button>
+              <button className="btn block" onClick={() => setSelectedBookDetail(null)}>
+                Tutup
+              </button>
             </motion.div>
-          </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
