@@ -916,3 +916,50 @@ button {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ============ ALASAN AI ============ */
+.why {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.why svg,
+.why-box svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--accent);
+}
+
+.why-box {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-bottom: 18px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--accent-soft);
+  font-size: 14px;
+}
+
+/* ============ HASIL KOSONG ============ */
+.banner.warn {
+  background: color-mix(in srgb, var(--gold) 16%, var(--surface));
+  border-color: color-mix(in srgb, var(--gold) 55%, transparent);
+}
+
+.banner.warn svg {
+  color: var(--gold);
+}
+
+.empty p {
+  margin-bottom: 4px;
+}
+
+.empty .chips {
+  justify-content: center;
+}

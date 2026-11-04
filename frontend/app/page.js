@@ -566,15 +566,39 @@ export default function Home() {
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.35 }}
               >
-                <div className="banner">
-                  <CheckCircle2 size={20} />
+                <div className={`banner${hasil.rekomendasi?.length === 0 ? " warn" : ""}`}>
+                  {hasil.rekomendasi?.length === 0 ? <Info size={20} /> : <CheckCircle2 size={20} />}
                   <strong>{hasil.buku_acuan}</strong>
                 </div>
 
-                <div className="res-head">
-                  <h2>Rekomendasi terkait</h2>
-                  <span>Ketuk kartu untuk melihat detail</span>
-                </div>
+                {hasil.rekomendasi?.length > 0 && (
+                  <div className="res-head">
+                    <h2>Rekomendasi terkait</h2>
+                    <span>Ketuk kartu untuk melihat detail</span>
+                  </div>
+                )}
+
+                {hasil.rekomendasi?.length === 0 && (
+                  <div className="empty">
+                    <p>Perpustakaan ini belum punya bacaan untuk topik tersebut. Coba salah satu ini:</p>
+                    <div className="chips">
+                      {CONTOH_KATA_KUNCI.map((k) => (
+                        <button
+                          key={k}
+                          type="button"
+                          className="chip"
+                          onClick={() => {
+                            ganti("text");
+                            pilihContoh(k);
+                            window.scrollTo({ top: 0, behavior: "smooth" });
+                          }}
+                        >
+                          <Sparkles size={13} /> {k}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid">
                   {hasil.rekomendasi &&
@@ -595,6 +619,11 @@ export default function Home() {
                           <div className="item-body">
                             <h3>{buku.judul}</h3>
                             <span className="tag">{buku.kategori}</span>
+                            {buku.alasan && (
+                              <p className="why">
+                                <Sparkles size={13} /> {buku.alasan}
+                              </p>
+                            )}
                           </div>
                           <Lingkaran skor={buku.skor_kemiripan} persen={persentase} />
                         </motion.button>
@@ -683,6 +712,12 @@ export default function Home() {
                   </div>
                 </div>
               </div>
+
+              {selectedBookDetail.alasan && (
+                <p className="why-box">
+                  <Sparkles size={16} /> {selectedBookDetail.alasan}
+                </p>
+              )}
 
               <div className="desc-title">
                 <Info size={16} /> Deskripsi
