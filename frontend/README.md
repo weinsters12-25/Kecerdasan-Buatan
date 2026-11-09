@@ -87,5 +87,5 @@ Untuk mengaktifkan fitur penerjemah gaya bahasa berbasis LLM:
 2. Server akan aktif di alamat lokal: http://127.0.0.1:8000.
 
 ## 7. Install Next.js di folder frontend
-1. ketik di cmd "npx create-next-app@latest"
+1. ketik di cmd "npm run dev"
 2. pastikan server uvicorn sedang aktif ketika ingin run "npm run dev"
