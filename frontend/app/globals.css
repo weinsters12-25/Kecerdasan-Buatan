@@ -5692,3 +5692,40 @@ body::after {
   .adm-ok-ic svg { stroke-dashoffset: 0; }
   .adm-ok-bar::after { transform: none; }
 }
+
+/* ---------- Nama kategori lengkap, vertikal ---------- */
+.rk-spine,
+.fb-spine {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rk-label {
+  flex: 1 1 auto;
+  min-height: 0;          /* penting: biar teks tidak mendorong keluar punggung */
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 8px 0;
+}
+
+.rk-name.rk-vert {
+  display: block;
+  writing-mode: vertical-rl !important;
+  transform: rotate(180deg);      /* dibaca dari bawah ke atas, seperti buku asli */
+  text-orientation: mixed;
+  white-space: nowrap;            /* satu kolom penuh, tidak dipotong jadi dua */
+  text-align: center;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: .03em;
+  max-height: 100%;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .45);
+}
+
+/* class lama untuk singkatan tidak dipakai lagi */
+.rk-ab { display: none; }

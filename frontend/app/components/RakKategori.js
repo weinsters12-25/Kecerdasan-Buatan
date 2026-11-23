@@ -20,34 +20,27 @@ const hash = (s) => {
 };
 const ketebalan = (n) => Math.min(124, Math.round(38 + 19 * Math.sqrt(n)));
 const tinggiAcak = (nama) => 190 + ((hash(nama) % 1000) / 1000) * 90;
-const lebarSampul = (it) => Math.round(it.H * 0.7);
 
-/* ---------- Singkatan untuk buku tipis (teks tegak, mudah dibaca) ---------- */
-const KATA_SAMBUNG = new Set(["dan", "di", "ke", "&", "of", "the"]);
-const singkat = (nama) => {
-  const kata = nama
-    .trim()
-    .split(/\s+/)
-    .filter((w) => w && !KATA_SAMBUNG.has(w.toLowerCase()));
-  if (kata.length >= 2) return (kata[0][0] + kata[1][0]).toUpperCase();
-  return (kata[0] || nama).slice(0, 2).toUpperCase();
+/* Ukuran huruf teks vertikal mengikuti ketebalan punggung */
+const ukuranHuruf = (T) => Math.min(16, Math.max(11, Math.round(T * 0.2)));
+
+/* Tinggi minimum agar nama lengkap muat secara vertikal
+   (panjang teks + ruang untuk garis hias dan badge jumlah) */
+const tinggiMinimum = (nama, T, k) => {
+  const fs = ukuranHuruf(T);
+  return Math.round(nama.length * fs * 0.64 + 100 * k);
 };
 
+const lebarSampul = (it) => Math.round(it.H * 0.7);
+
 function PunggungIsi({ it }) {
-  const lebar = it.T >= 88; // cukup tebal: tulis nama kategori secara horizontal
   return (
     <>
       <span className="rk-band" />
       <span className="rk-label">
-        {lebar ? (
-          <span className="rk-name" style={{ fontSize: Math.min(15, Math.max(11, it.T * 0.14)) }}>
-            {it.nama}
-          </span>
-        ) : (
-          <span className="rk-ab" style={{ fontSize: Math.max(11, Math.min(22, it.T * 0.36)) }}>
-            {singkat(it.nama)}
-          </span>
-        )}
+        <span className="rk-name rk-vert" style={{ fontSize: ukuranHuruf(it.T) }}>
+          {it.nama}
+        </span>
       </span>
       <span className="rk-count">{it.jumlah}</span>
       <span className="rk-band" />
@@ -103,12 +96,13 @@ export default function RakKategori({ kategori = [], aktif = "", onBuka }) {
 
   const items = useMemo(
     () =>
-      kategori.map((c) => ({
-        ...c,
-        T: Math.round(ketebalan(c.jumlah) * k),
-        H: Math.round(tinggiAcak(c.nama) * k),
-        hue: hueDariTeks(c.nama),
-      })),
+      kategori.map((c) => {
+        const T = Math.round(ketebalan(c.jumlah) * k);
+        const H = Math.round(
+          Math.max(tinggiAcak(c.nama) * k, tinggiMinimum(c.nama, T, k))
+        );
+        return { ...c, T, H, hue: hueDariTeks(c.nama) };
+      }),
     [kategori, k]
   );
 
