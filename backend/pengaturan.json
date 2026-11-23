@@ -1,0 +1,13 @@
+{
+  "terbaik": {
+    "mode": "manual",
+    "ids": [
+      3,
+      7,
+      9
+    ],
+    "jumlah": 3,
+    "judul": "Pilihan terbaik perpustakaan",
+    "subjudul": "Buku yang isinya paling banyak berkaitan dengan koleksi lain, cocok sebagai titik awal membaca."
+  }
+}

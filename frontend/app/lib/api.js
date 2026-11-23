@@ -73,7 +73,12 @@ export const getGraf = (top = 5, minSkor = 0.1) =>
     return d;
   });
 
-export const getTerbaik = (n = 3) => ambil(`/api/terbaik?n=${n}`);
+export const getTerbaik = (n) =>
+  ambil(`/api/terbaik${n ? `?n=${n}` : ""}`).then((d) => {
+    // dukung format lama (daftar) maupun baru (objek)
+    if (Array.isArray(d)) return { judul: "", subjudul: "", mode: "otomatis", buku: d };
+    return d;
+  });
 
 export const getRekomDaftar = (ids, n = 6) =>
   ambil("/api/rekomendasi/dari-daftar", {

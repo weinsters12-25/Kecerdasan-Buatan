@@ -153,7 +153,7 @@ export default function Home() {
   const [devTampil, setDevTampil] = useState(false); // panel mode mesin (tersembunyi)
   const [daftarBuku, setDaftarBuku] = useState([]);
   const [daftarKat, setDaftarKat] = useState([]);
-  const [terbaik, setTerbaik] = useState([]);
+  const [terbaik, setTerbaik] = useState({ judul: "", subjudul: "", buku: [] });
   const [idBuku, setIdBuku] = useState("");
   const [inputTeks, setInputTeks] = useState("");
   const [hasil, setHasil] = useState(null);
@@ -187,9 +187,9 @@ export default function Home() {
           })
           .catch((err) => console.error("Gagal memuat daftar buku", err));
       });
-    getTerbaik(3)
-      .then((d) => Array.isArray(d) && setTerbaik(d))
-      .catch(() => {});
+    getTerbaik()
+  .then((d) => d && Array.isArray(d.buku) && setTerbaik(d))
+  .catch(() => {});
   }, []);
 
   /* ===== Animasi GSAP: hero ===== */
@@ -656,30 +656,30 @@ export default function Home() {
       </section>
 
       {/* ===== Pilihan terbaik perpustakaan ===== */}
-      {terbaik.length > 0 && (
-        <section className="results terbaik" id="terbaik" style={{ paddingTop: 0, scrollMarginTop: 24 }}>
-          <div className="res-head">
-            <div>
-              <h2>
-                <Trophy size={20} style={{ verticalAlign: "-3px", color: "var(--accent)" }} /> Pilihan
-                terbaik perpustakaan
-              </h2>
-              <p className="res-sub">
-                Buku yang isinya paling banyak berkaitan dengan koleksi lain, cocok sebagai titik
-                awal membaca.
-              </p>
-            </div>
-            <Link href="/peta" className="link-more">
-              <Network size={14} style={{ verticalAlign: "-2px" }} /> Lihat di peta →
-            </Link>
-          </div>
-          <Reveal className="grid" deps={[terbaik]}>
-            {terbaik.map((b, i) => (
-              <BookCard key={b.id_buku} buku={b} rank={i + 1} />
-            ))}
-          </Reveal>
-        </section>
-      )}
+      {terbaik.buku.length > 0 && (
+  <section className="results terbaik" id="terbaik" style={{ paddingTop: 0, scrollMarginTop: 24 }}>
+    <div className="res-head">
+      <div>
+        <h2>
+          <Trophy size={20} style={{ verticalAlign: "-3px", color: "var(--accent)" }} />{" "}
+          {terbaik.judul || "Pilihan terbaik perpustakaan"}
+        </h2>
+        <p className="res-sub">
+          {terbaik.subjudul ||
+            "Buku yang isinya paling banyak berkaitan dengan koleksi lain, cocok sebagai titik awal membaca."}
+        </p>
+      </div>
+      <Link href="/peta" className="link-more">
+        <Network size={14} style={{ verticalAlign: "-2px" }} /> Lihat di peta →
+      </Link>
+    </div>
+    <Reveal className="grid" deps={[terbaik]}>
+      {terbaik.buku.map((b, i) => (
+        <BookCard key={b.id_buku} buku={b} rank={i + 1} />
+      ))}
+    </Reveal>
+  </section>
+)}
 
       {/* ===== Rak kategori ===== */}
       {daftarKat.length > 0 && (

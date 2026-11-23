@@ -515,28 +515,80 @@ def get_graf(top: int = 5, min_skor: float = 0.1):
     return hasil
 
 # ==============================================================================
-# 1d. BUKU TERBAIK (paling "terhubung" dengan koleksi lain)
+# 1d. BUKU TERBAIK (otomatis dari kemiripan, atau dipilih manual oleh admin)
 # ==============================================================================
+import json as _json
+
+PENGATURAN_FILE = Path("pengaturan.json")
 _cache_terbaik = {}
 
+_TERBAIK_BAWAAN = {
+    "mode": "otomatis",          # "otomatis" | "manual"
+    "ids": [],                   # urutan id_buku untuk mode manual
+    "jumlah": 3,                 # jumlah buku pada mode otomatis
+    "judul": "Pilihan terbaik perpustakaan",
+    "subjudul": "Buku yang isinya paling banyak berkaitan dengan koleksi lain, cocok sebagai titik awal membaca.",
+}
 
-@app.get("/api/terbaik")
-def get_terbaik(n: int = 3):
-    n = max(1, min(n, 12))
-    if n in _cache_terbaik:
-        return _cache_terbaik[n]
 
-    S = gabung_skor(EMB_SIM, cosine_sim)
-    S = np.array(S, dtype=float)
+def baca_terbaik_cfg():
+    cfg = dict(_TERBAIK_BAWAAN)
+    try:
+        if PENGATURAN_FILE.exists():
+            d = _json.loads(PENGATURAN_FILE.read_text(encoding="utf-8")).get("terbaik", {})
+            if isinstance(d, dict):
+                cfg.update({k: d[k] for k in _TERBAIK_BAWAAN if k in d})
+    except Exception as e:
+        print("[PENGATURAN] gagal membaca:", e)
+    return cfg
+
+
+def simpan_terbaik_cfg(cfg):
+    data = {}
+    try:
+        if PENGATURAN_FILE.exists():
+            data = _json.loads(PENGATURAN_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        data = {}
+    data["terbaik"] = cfg
+    PENGATURAN_FILE.write_text(_json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _terbaik_otomatis(n):
+    S = np.array(gabung_skor(EMB_SIM, cosine_sim), dtype=float)
     np.fill_diagonal(S, 0)
-
     k = max(1, min(5, len(df_buku) - 1))
     pusat = np.sort(S, axis=1)[:, -k:].mean(axis=1)           # rata-rata 5 tetangga terdekat
     bonus = np.array([0.02 if url_gambar(g) else 0.0 for g in df_buku["gambar"]])
-
     urut = np.argsort(-(pusat + bonus))[:n]
-    hasil = [detail_dict(df_buku.iloc[int(i)]) for i in urut]
-    _cache_terbaik[n] = hasil
+    return [detail_dict(df_buku.iloc[int(i)]) for i in urut]
+
+
+def hitung_terbaik(n=None):
+    cfg = baca_terbaik_cfg()
+    if cfg["mode"] == "manual" and cfg["ids"]:
+        posisi = {int(v): i for i, v in enumerate(df_buku["id_buku"].astype(int))}
+        hasil = [detail_dict(df_buku.iloc[posisi[int(i)]]) for i in cfg["ids"] if int(i) in posisi]
+        if hasil:
+            return hasil[: n or 12]
+    jumlah = n or max(1, min(int(cfg.get("jumlah", 3)), 12))
+    return _terbaik_otomatis(jumlah)
+
+
+@app.get("/api/terbaik")
+def get_terbaik(n: int | None = None):
+    kunci = ("terbaik", n, PENGATURAN_FILE.stat().st_mtime if PENGATURAN_FILE.exists() else 0, len(df_buku))
+    if kunci in _cache_terbaik:
+        return _cache_terbaik[kunci]
+    cfg = baca_terbaik_cfg()
+    hasil = {
+        "judul": cfg["judul"],
+        "subjudul": cfg["subjudul"],
+        "mode": cfg["mode"],
+        "buku": hitung_terbaik(n),
+    }
+    _cache_terbaik.clear()
+    _cache_terbaik[kunci] = hasil
     return hasil
 
 # ==============================================================================
@@ -1282,3 +1334,47 @@ def admin_terapkan(_adm=Depends(admin_saja)):
         "total": int(len(df_buku)),
         "mode": "hybrid" if EMB_BUKU is not None else "tfidf",
     }
+    
+# ==============================================================================
+# ADMIN: PENGATURAN "PILIHAN TERBAIK PERPUSTAKAAN"
+# ==============================================================================
+class TerbaikIn(BaseModel):
+    mode: str = "otomatis"
+    ids: list[int] = []
+    jumlah: int = 3
+    judul: str = ""
+    subjudul: str = ""
+
+
+@app.get("/api/admin/terbaik")
+def admin_get_terbaik(_adm=Depends(admin_saja)):
+    cfg = baca_terbaik_cfg()
+    ada = set(df_buku["id_buku"].astype(int).tolist())
+    return {
+        "cfg": cfg,
+        "ids_hilang": [i for i in cfg["ids"] if int(i) not in ada],
+        "pratinjau": [
+            {"id_buku": b["id_buku"], "judul": b["judul"], "kategori": b["kategori"]}
+            for b in hitung_terbaik()
+        ],
+    }
+
+
+@app.put("/api/admin/terbaik")
+def admin_set_terbaik(d: TerbaikIn, _adm=Depends(admin_saja)):
+    if d.mode not in {"otomatis", "manual"}:
+        raise HTTPException(400, "Mode harus otomatis atau manual.")
+    ada = set(df_buku["id_buku"].astype(int).tolist())
+    ids = [i for i in dict.fromkeys(d.ids) if i in ada][:6]
+    if d.mode == "manual" and not ids:
+        raise HTTPException(400, "Pilih minimal satu buku untuk mode manual.")
+    cfg = {
+        "mode": d.mode,
+        "ids": ids,
+        "jumlah": max(1, min(d.jumlah, 6)),
+        "judul": (d.judul.strip() or _TERBAIK_BAWAAN["judul"])[:80],
+        "subjudul": (d.subjudul.strip() or _TERBAIK_BAWAAN["subjudul"])[:200],
+    }
+    simpan_terbaik_cfg(cfg)
+    _cache_terbaik.clear()
+    return {"ok": True, "cfg": cfg}

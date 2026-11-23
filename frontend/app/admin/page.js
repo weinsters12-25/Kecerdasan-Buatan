@@ -1,7 +1,27 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ImagePlus, KeyRound, Pencil, Plus, RefreshCw, Search, ShieldCheck, Trash2, X } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  BookOpen,
+  Check,
+  Eye,
+  EyeOff,
+  ImagePlus,
+  KeyRound,
+  Library,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Save,
+  Search,
+  ShieldCheck,
+  Star,
+  Trash2,
+  Trophy,
+  X,
+} from "lucide-react";
 import PageShell from "../components/PageShell";
 import BookCover from "../components/BookCover";
 import * as adm from "../lib/admin";
@@ -19,14 +39,245 @@ const KOSONG = {
   sinopsis: "",
 };
 
+const MAKS_PILIHAN = 6;
+const JEDA_SUKSES = 1400; // ms layar "berhasil masuk" ditampilkan
+
+/* =====================================================================
+   TAB: PILIHAN TERBAIK (hanya kurasi manual)
+   ===================================================================== */
+function TabTerbaik({ buku, setToast, tangani }) {
+  const [cfg, setCfg] = useState(null);
+  const [hilang, setHilang] = useState([]);
+  const [q, setQ] = useState("");
+  const [sibuk, setSibuk] = useState(false);
+  const [berubah, setBerubah] = useState(false);
+
+  const muat = useCallback(async () => {
+    try {
+      const d = await adm.getTerbaikAdmin();
+      setCfg({
+        ...d.cfg,
+        mode: "manual", // selalu manual
+        ids: d.cfg.ids.filter((i) => !d.ids_hilang.includes(i)),
+      });
+      setHilang(d.ids_hilang);
+      // Jika konfigurasi lama masih "otomatis", tandai berubah agar bisa disimpan sebagai manual
+      setBerubah(d.cfg.mode !== "manual");
+    } catch (e) {
+      tangani(e);
+    }
+  }, [tangani]);
+
+  useEffect(() => {
+    muat();
+  }, [muat]);
+
+  const byId = useMemo(() => new Map(buku.map((b) => [Number(b.id_buku), b])), [buku]);
+
+  const ubah = (p) => {
+    setCfg((c) => ({ ...c, ...p }));
+    setBerubah(true);
+  };
+
+  const tambah = (id) => {
+    if (cfg.ids.includes(id)) return;
+    if (cfg.ids.length >= MAKS_PILIHAN) {
+      setToast({ t: "err", s: `Maksimal ${MAKS_PILIHAN} buku.` });
+      return;
+    }
+    ubah({ ids: [...cfg.ids, id] });
+  };
+
+  const hapusId = (id) => ubah({ ids: cfg.ids.filter((x) => x !== id) });
+
+  const geser = (i, arah) => {
+    const j = i + arah;
+    if (j < 0 || j >= cfg.ids.length) return;
+    const baru = [...cfg.ids];
+    [baru[i], baru[j]] = [baru[j], baru[i]];
+    ubah({ ids: baru });
+  };
+
+  const hasilCari = useMemo(() => {
+    const k = q.trim().toLowerCase();
+    if (!k) return [];
+    return buku
+      .filter((b) => `${b.judul} ${b.penulis} ${b.kategori}`.toLowerCase().includes(k))
+      .filter((b) => !cfg?.ids.includes(Number(b.id_buku)))
+      .slice(0, 8);
+  }, [q, buku, cfg]);
+
+  const simpan = async () => {
+    if (cfg.ids.length === 0) {
+      setToast({ t: "err", s: "Pilih minimal satu buku." });
+      return;
+    }
+    setSibuk(true);
+    try {
+      await adm.setTerbaikAdmin({
+        mode: "manual",
+        ids: cfg.ids,
+        jumlah: cfg.jumlah,
+        judul: cfg.judul,
+        subjudul: cfg.subjudul,
+      });
+      await muat();
+      setToast({ t: "ok", s: "Tersimpan. Beranda langsung memakai pilihan ini." });
+    } catch (e) {
+      tangani(e);
+    } finally {
+      setSibuk(false);
+    }
+  };
+
+  if (!cfg) return <div className="skeleton" style={{ height: 240 }} />;
+
+  return (
+    <div className="tb">
+      {hilang.length > 0 && (
+        <p className="tb-warn" role="status">
+          {hilang.length} buku pilihan sebelumnya sudah dihapus dari koleksi dan dilewati.
+        </p>
+      )}
+
+      <div className="tb-head">
+        <Star size={20} />
+        <span>
+          <strong>Kurasi Pustakawan</strong>
+          <small>Pilih sendiri bukunya dan atur urutan tampilnya di beranda.</small>
+        </span>
+      </div>
+
+      <div className="tb-grid">
+        <div className="tb-col">
+          <h3 className="tb-h">Teks bagian</h3>
+          <div className="adm-fields">
+            <label>
+              Judul
+              <input value={cfg.judul} onChange={(e) => ubah({ judul: e.target.value })} maxLength={80} />
+            </label>
+            <label>
+              Subjudul
+              <textarea
+                className="tb-ta"
+                rows={3}
+                value={cfg.subjudul}
+                onChange={(e) => ubah({ subjudul: e.target.value })}
+                maxLength={200}
+              />
+            </label>
+          </div>
+        </div>
+
+        <div className="tb-col">
+          <h3 className="tb-h">
+            Buku pilihan ({cfg.ids.length}/{MAKS_PILIHAN})
+          </h3>
+
+          {cfg.ids.length === 0 && <p className="tb-kosong">Belum ada buku. Cari dan tambahkan di bawah.</p>}
+
+          <ol className="tb-list">
+            {cfg.ids.map((id, i) => {
+              const b = byId.get(id);
+              return (
+                <li key={id} className="tb-item">
+                  <span className="tb-no">#{i + 1}</span>
+                  {b && <BookCover buku={{ ...b, gambar: b.gambar_url }} size="xs" />}
+                  <span className="tb-t">
+                    <strong>{b ? b.judul : `Buku #${id}`}</strong>
+                    <small>{b ? b.kategori || "Tanpa kategori" : "tidak ditemukan"}</small>
+                  </span>
+                  <span className="adm-act">
+                    <button type="button" className="adm-ib" onClick={() => geser(i, -1)} disabled={i === 0} aria-label="Naikkan">
+                      <ArrowUp size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      className="adm-ib"
+                      onClick={() => geser(i, 1)}
+                      disabled={i === cfg.ids.length - 1}
+                      aria-label="Turunkan"
+                    >
+                      <ArrowDown size={16} />
+                    </button>
+                    <button type="button" className="adm-ib bahaya" onClick={() => hapusId(id)} aria-label="Hapus dari pilihan">
+                      <X size={16} />
+                    </button>
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
+
+          <label className="field" style={{ marginTop: 10 }}>
+            <Search size={16} />
+            <input
+              type="text"
+              placeholder="Cari buku untuk ditambahkan…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              aria-label="Cari buku untuk ditambahkan"
+            />
+          </label>
+
+          {hasilCari.length > 0 && (
+            <ul className="tb-cari">
+              {hasilCari.map((b) => (
+                <li key={b.id_buku}>
+                  <button type="button" onClick={() => tambah(Number(b.id_buku))}>
+                    <BookCover buku={{ ...b, gambar: b.gambar_url }} size="xs" />
+                    <span className="tb-t">
+                      <strong>{b.judul}</strong>
+                      <small>
+                        {b.kategori || "Tanpa kategori"} · {b.penulis || "-"}
+                      </small>
+                    </span>
+                    <Plus size={16} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {q.trim() && hasilCari.length === 0 && <p className="tb-kosong">Tidak ada buku yang cocok.</p>}
+        </div>
+      </div>
+
+      <div className="adm-mf" style={{ marginTop: 18 }}>
+        <button type="button" className="btn ghost" onClick={muat} disabled={sibuk || !berubah}>
+          Batalkan perubahan
+        </button>
+        <button type="button" className="btn" onClick={simpan} disabled={sibuk || !berubah}>
+          {sibuk ? (
+            "Menyimpan…"
+          ) : berubah ? (
+            <>
+              <Save size={16} /> Simpan pilihan
+            </>
+          ) : (
+            <>
+              <Check size={16} /> Tersimpan
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* =====================================================================
+   HALAMAN ADMIN
+   ===================================================================== */
 export default function AdminPage() {
-  const [fase, setFase] = useState("cek"); // cek | kunci | ok
+  const [fase, setFase] = useState("cek"); // cek | kunci | selamat | ok
+  const [tab, setTab] = useState("buku"); // buku | terbaik
   const [kunci, setKunci] = useState("");
+  const [lihatKunci, setLihatKunci] = useState(false);
   const [err, setErr] = useState("");
   const [data, setData] = useState({ buku: [], kategori: [] });
   const [info, setInfo] = useState(null);
   const [q, setQ] = useState("");
   const [form, setForm] = useState(null); // { id, v, file, pratinjau }
+  const [detail, setDetail] = useState(null); // { b, konfirmasi }
   const [sibuk, setSibuk] = useState("");
   const [toast, setToast] = useState(null);
 
@@ -53,13 +304,35 @@ export default function AdminPage() {
       });
   }, [muat]);
 
+  // Layar "berhasil masuk" -> otomatis lanjut ke halaman admin
+  useEffect(() => {
+    if (fase !== "selamat") return;
+    const t = setTimeout(() => {
+      setFase("ok");
+      setToast({ t: "ok", s: "Berhasil masuk. Selamat datang, admin!" });
+    }, JEDA_SUKSES);
+    return () => clearTimeout(t);
+  }, [fase]);
+
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 5000);
     return () => clearTimeout(t);
   }, [toast]);
 
-  const tangani = (e) => {
+  // Tombol Esc menutup detail / form
+  useEffect(() => {
+    if (!detail && !form) return;
+    const onKey = (e) => {
+      if (e.key !== "Escape" || sibuk) return;
+      if (form) setForm(null);
+      else setDetail(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [detail, form, sibuk]);
+
+  const tangani = useCallback((e) => {
     if (e.status === 401) {
       adm.hapusKunci();
       setFase("kunci");
@@ -67,17 +340,19 @@ export default function AdminPage() {
       return;
     }
     setToast({ t: "err", s: e.message || "Terjadi kesalahan." });
-  };
+  }, []);
 
   const masuk = async (e) => {
     e.preventDefault();
     adm.simpanKunci(kunci.trim());
     setSibuk("masuk");
+    setErr("");
     try {
       await adm.cek();
       await muat();
-      setErr("");
-      setFase("ok");
+      setKunci("");
+      setLihatKunci(false);
+      setFase("selamat");
     } catch (er) {
       adm.hapusKunci();
       setErr(er.message);
@@ -89,18 +364,27 @@ export default function AdminPage() {
   const keluar = () => {
     adm.hapusKunci();
     setKunci("");
+    setLihatKunci(false);
+    setErr("");
+    setTab("buku");
     setFase("kunci");
+    setToast(null);
   };
 
-  /* ----- form ----- */
+  /* ----- detail buku ----- */
+  const bukaDetail = (b, konfirmasi = false) => setDetail({ b, konfirmasi });
+
+  /* ----- form buku ----- */
   const bukaBaru = () => setForm({ id: null, v: { ...KOSONG }, file: null, pratinjau: "" });
-  const bukaUbah = (b) =>
+  const bukaUbah = (b) => {
+    setDetail(null);
     setForm({
       id: b.id_buku,
       v: Object.fromEntries(Object.keys(KOSONG).map((k) => [k, b[k] || ""])),
       file: null,
       pratinjau: b.gambar_url || "",
     });
+  };
 
   const isi = (k, val) => setForm((f) => ({ ...f, v: { ...f.v, [k]: val } }));
 
@@ -141,11 +425,11 @@ export default function AdminPage() {
   };
 
   const hapus = async (b) => {
-    if (!window.confirm(`Hapus “${b.judul}”? Buku ini juga hilang dari daftar, status, dan catatan semua pengguna.`)) return;
     setSibuk("hapus");
     try {
       await adm.hapus(b.id_buku);
       await muat();
+      setDetail(null);
       setToast({ t: "ok", s: "Buku dihapus. Klik “Terapkan perubahan”." });
     } catch (er) {
       tangani(er);
@@ -188,6 +472,23 @@ export default function AdminPage() {
     );
   }
 
+  if (fase === "selamat") {
+    return (
+      <PageShell>
+        <section className="results" style={{ paddingTop: 0 }}>
+          <div className="adm-gate adm-sukses" role="status" aria-live="polite">
+            <span className="adm-ok-ic">
+              <Check size={34} strokeWidth={3} />
+            </span>
+            <h1>Berhasil masuk</h1>
+            <p>Kunci admin benar. Membuka area admin…</p>
+            <span className="adm-ok-bar" style={{ animationDuration: `${JEDA_SUKSES}ms` }} />
+          </div>
+        </section>
+      </PageShell>
+    );
+  }
+
   if (fase === "kunci") {
     return (
       <PageShell>
@@ -202,14 +503,25 @@ export default function AdminPage() {
               <span className="gf-l">
                 <KeyRound size={14} /> Kunci admin
               </span>
-              <span className="gf-in">
+              <span className="gf-in gf-pass">
                 <input
-                  type="password"
+                  type={lihatKunci ? "text" : "password"}
                   value={kunci}
                   onChange={(e) => setKunci(e.target.value)}
                   autoComplete="off"
                   autoFocus
+                  disabled={sibuk === "masuk"}
                 />
+                <button
+                  type="button"
+                  className="gf-eye"
+                  onClick={() => setLihatKunci((v) => !v)}
+                  aria-label={lihatKunci ? "Sembunyikan kunci" : "Tampilkan kunci"}
+                  aria-pressed={lihatKunci}
+                  tabIndex={-1}
+                >
+                  {lihatKunci ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </span>
             </label>
             {err && (
@@ -229,73 +541,199 @@ export default function AdminPage() {
   return (
     <PageShell>
       <section className="page-head">
-        <h1>Kelola buku</h1>
+        <h1>Kelola situs</h1>
         <p className="lead">
-          Perubahan ditulis ke buku.csv (cadangan otomatis: buku_backup_admin.csv). Klik Terapkan agar
-          pencarian dan peta memakai data baru.
+          {tab === "buku"
+            ? "Klik sebuah buku untuk melihat detailnya. Perubahan ditulis ke buku.csv (cadangan otomatis: buku_backup_admin.csv). Klik Terapkan agar pencarian dan peta memakai data baru."
+            : "Atur buku yang tampil di bagian “Pilihan terbaik perpustakaan” pada beranda. Perubahan langsung berlaku."}
         </p>
       </section>
 
       <section className="results" style={{ paddingTop: 0 }}>
-        <div className="adm-bar">
-          <label className="field">
-            <Search size={16} />
-            <input
-              type="text"
-              placeholder="Cari judul, penulis, kategori…"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              aria-label="Cari buku"
-            />
-          </label>
-          <button type="button" className="btn" onClick={bukaBaru}>
-            <Plus size={16} /> Tambah buku
+        <div className="adm-tabs" role="tablist" aria-label="Bagian admin">
+          <button type="button" role="tab" aria-selected={tab === "buku"} className="adm-tab" onClick={() => setTab("buku")}>
+            <Library size={16} /> Buku
           </button>
-          <button
-            type="button"
-            className={`btn ghost adm-apply${info?.perlu_terapkan ? " perlu" : ""}`}
-            onClick={terapkan}
-            disabled={sibuk === "terapkan"}
-          >
-            <RefreshCw size={16} className={sibuk === "terapkan" ? "putar" : ""} />
-            {sibuk === "terapkan" ? "Menghitung…" : "Terapkan perubahan"}
-            {info?.perlu_terapkan && sibuk !== "terapkan" && <i className="adm-dot" aria-label="Ada perubahan belum diterapkan" />}
+          <button type="button" role="tab" aria-selected={tab === "terbaik"} className="adm-tab" onClick={() => setTab("terbaik")}>
+            <Trophy size={16} /> Pilihan terbaik
           </button>
-          <button type="button" className="link-more" onClick={keluar}>
+          <button type="button" className="link-more adm-out" onClick={keluar}>
             Keluar admin
           </button>
         </div>
 
-        <p className="adm-info">
-          {data.buku.length} buku di file · {info?.total} aktif di situs · mode{" "}
-          <b>{info?.mode === "hybrid" ? "Hybrid" : "TF-IDF"}</b>
-        </p>
+        {tab === "terbaik" && <TabTerbaik buku={data.buku} setToast={setToast} tangani={tangani} />}
 
-        <div className="adm-list">
-          {tersaring.map((b) => (
-            <div className="adm-row" key={b.id_buku}>
-              <BookCover buku={{ ...b, gambar: b.gambar_url }} size="xs" />
-              <div className="adm-main">
-                <strong>{b.judul}</strong>
-                <small>
-                  #{b.id_buku} · {b.kategori || "Tanpa kategori"} · {b.penulis || "-"}
-                  {b.tahun_terbit ? ` · ${b.tahun_terbit}` : ""}
-                </small>
-              </div>
-              <div className="adm-act">
-                <button type="button" className="adm-ib" onClick={() => bukaUbah(b)} aria-label={`Ubah ${b.judul}`}>
-                  <Pencil size={16} />
-                </button>
-                <button type="button" className="adm-ib bahaya" onClick={() => hapus(b)} aria-label={`Hapus ${b.judul}`}>
-                  <Trash2 size={16} />
-                </button>
-              </div>
+        {tab === "buku" && (
+          <>
+            <div className="adm-bar">
+              <label className="field">
+                <Search size={16} />
+                <input
+                  type="text"
+                  placeholder="Cari judul, penulis, kategori…"
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  aria-label="Cari buku"
+                />
+              </label>
+              <button type="button" className="btn" onClick={bukaBaru}>
+                <Plus size={16} /> Tambah buku
+              </button>
+              <button
+                type="button"
+                className={`btn ghost adm-apply${info?.perlu_terapkan ? " perlu" : ""}`}
+                onClick={terapkan}
+                disabled={sibuk === "terapkan"}
+              >
+                <RefreshCw size={16} className={sibuk === "terapkan" ? "putar" : ""} />
+                {sibuk === "terapkan" ? "Menghitung…" : "Terapkan perubahan"}
+                {info?.perlu_terapkan && sibuk !== "terapkan" && (
+                  <i className="adm-dot" aria-label="Ada perubahan belum diterapkan" />
+                )}
+              </button>
             </div>
-          ))}
-          {tersaring.length === 0 && <div className="empty">Tidak ada buku yang cocok.</div>}
-        </div>
+
+            <p className="adm-info">
+              {data.buku.length} buku di file · {info?.total} aktif di situs · mode{" "}
+              <b>{info?.mode === "hybrid" ? "Hybrid" : "TF-IDF"}</b>
+            </p>
+
+            <div className="adm-list">
+              {tersaring.map((b) => (
+                <div
+                  className="adm-row adm-click"
+                  key={b.id_buku}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => bukaDetail(b)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      bukaDetail(b);
+                    }
+                  }}
+                  aria-label={`Lihat detail ${b.judul}`}
+                >
+                  <BookCover buku={{ ...b, gambar: b.gambar_url }} size="xs" />
+                  <div className="adm-main">
+                    <strong>{b.judul}</strong>
+                    <small>
+                      #{b.id_buku} · {b.kategori || "Tanpa kategori"} · {b.penulis || "-"}
+                      {b.tahun_terbit ? ` · ${b.tahun_terbit}` : ""}
+                    </small>
+                  </div>
+                  <div className="adm-act" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                    <button type="button" className="adm-ib" onClick={() => bukaUbah(b)} aria-label={`Ubah ${b.judul}`}>
+                      <Pencil size={16} />
+                    </button>
+                    <button type="button" className="adm-ib bahaya" onClick={() => bukaDetail(b, true)} aria-label={`Hapus ${b.judul}`}>
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {tersaring.length === 0 && <div className="empty">Tidak ada buku yang cocok.</div>}
+            </div>
+          </>
+        )}
       </section>
 
+      {/* ===== MODAL DETAIL BUKU ===== */}
+      {detail && (
+        <div className="adm-ov" onMouseDown={() => !sibuk && setDetail(null)}>
+          <div
+            className="adm-modal adm-detail"
+            onMouseDown={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Detail ${detail.b.judul}`}
+          >
+            <div className="adm-mh">
+              <h2>
+                <BookOpen size={18} /> Detail buku
+              </h2>
+              <button type="button" className="adm-ib" onClick={() => setDetail(null)} aria-label="Tutup" disabled={!!sibuk}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="adm-dt">
+              <div className="adm-dt-cv">
+                <BookCover buku={{ ...detail.b, gambar: detail.b.gambar_url }} size="md" />
+              </div>
+              <div className="adm-dt-main">
+                <span className="adm-dt-kat">{detail.b.kategori || "Tanpa kategori"}</span>
+                <h3 className="adm-dt-judul">{detail.b.judul}</h3>
+                <dl className="adm-dt-meta">
+                  <div>
+                    <dt>ID</dt>
+                    <dd>#{detail.b.id_buku}</dd>
+                  </div>
+                  <div>
+                    <dt>Penulis</dt>
+                    <dd>{detail.b.penulis || "-"}</dd>
+                  </div>
+                  <div>
+                    <dt>Penerbit</dt>
+                    <dd>{detail.b.penerbit || "-"}</dd>
+                  </div>
+                  <div>
+                    <dt>Tahun</dt>
+                    <dd>{detail.b.tahun_terbit || "-"}</dd>
+                  </div>
+                  <div>
+                    <dt>Halaman</dt>
+                    <dd>{detail.b.jumlah_halaman || "-"}</dd>
+                  </div>
+                  <div>
+                    <dt>ISBN / ISSN</dt>
+                    <dd>{detail.b.isbn || "-"}</dd>
+                  </div>
+                </dl>
+              </div>
+            </div>
+
+            <div className="adm-dt-sin">
+              <h4>Sinopsis</h4>
+              <p>{detail.b.sinopsis || "Belum ada sinopsis."}</p>
+            </div>
+
+            {detail.konfirmasi ? (
+              <div className="adm-dt-warn" role="alertdialog" aria-live="assertive">
+                <p>
+                  Hapus <b>“{detail.b.judul}”</b>? Buku ini juga hilang dari daftar, status, dan catatan semua pengguna.
+                  Tindakan ini tidak bisa dibatalkan.
+                </p>
+                <div className="adm-mf">
+                  <button
+                    type="button"
+                    className="btn ghost"
+                    onClick={() => setDetail((d) => ({ ...d, konfirmasi: false }))}
+                    disabled={sibuk === "hapus"}
+                  >
+                    Batal
+                  </button>
+                  <button type="button" className="btn adm-danger" onClick={() => hapus(detail.b)} disabled={sibuk === "hapus"}>
+                    <Trash2 size={16} /> {sibuk === "hapus" ? "Menghapus…" : "Ya, hapus"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="adm-mf adm-dt-act">
+                <button type="button" className="btn ghost adm-danger-ghost" onClick={() => setDetail((d) => ({ ...d, konfirmasi: true }))}>
+                  <Trash2 size={16} /> Hapus buku
+                </button>
+                <button type="button" className="btn" onClick={() => bukaUbah(detail.b)}>
+                  <Pencil size={16} /> Ubah data
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ===== MODAL FORM TAMBAH / UBAH ===== */}
       {form && (
         <div className="adm-ov" onMouseDown={() => !sibuk && setForm(null)}>
           <form

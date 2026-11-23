@@ -51,3 +51,6 @@ export async function cover(id, file) {
   const ekstensi = (file.name.split(".").pop() || "").toLowerCase();
   return adm(`/api/admin/cover/${id}`, { method: "POST", body: { ekstensi, data } });
 }
+
+export const getTerbaikAdmin = () => adm("/api/admin/terbaik");
+export const setTerbaikAdmin = (v) => adm("/api/admin/terbaik", { method: "PUT", body: v });
