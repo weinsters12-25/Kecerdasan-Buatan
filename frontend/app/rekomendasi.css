@@ -1,0 +1,267 @@
+/* ===== Tata letak premium: 3 rekomendasi terbaik ===== */
+.rec-wrap {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  align-items: stretch;
+}
+
+.rec-slot {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.rec-frame {
+  position: relative;
+  flex: 1;
+  border-radius: 20px;
+  display: flex;
+}
+.rec-frame > * {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Peringkat 1: lebar penuh, bingkai bercahaya */
+.rec-1 {
+  grid-column: 1 / -1;
+}
+.rec-1 .rec-frame {
+  padding: 1.5px;
+  border-radius: 24px;
+  background: linear-gradient(
+    135deg,
+    var(--accent, #d4f55a) 0%,
+    rgba(212, 245, 90, 0.08) 38%,
+    rgba(59, 108, 255, 0.55) 100%
+  );
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.03),
+    0 24px 60px -24px rgba(212, 245, 90, 0.35),
+    0 10px 30px -12px rgba(59, 108, 255, 0.35);
+}
+.rec-1 .rec-frame > * {
+  border-radius: 22px;
+}
+.rec-1::before {
+  content: "";
+  position: absolute;
+  inset: -40px -20px auto -20px;
+  height: 160px;
+  background: radial-gradient(60% 100% at 50% 0%, rgba(212, 245, 90, 0.14), transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+.rec-1 .rec-frame {
+  z-index: 1;
+}
+
+/* Peringkat 2 & 3 */
+.rec-2 .rec-frame,
+.rec-3 .rec-frame {
+  padding: 1px;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.03) 55%);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.rec-2 .rec-frame > *,
+.rec-3 .rec-frame > * {
+  border-radius: 19px;
+}
+.rec-2:hover .rec-frame,
+.rec-3:hover .rec-frame {
+  transform: translateY(-4px);
+  box-shadow: 0 18px 40px -20px rgba(212, 245, 90, 0.35);
+}
+
+/* Label mahkota di atas kartu utama */
+.rec-crown {
+  position: relative;
+  z-index: 2;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 -10px 20px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #0b0b0b;
+  background: var(--accent, #d4f55a);
+  box-shadow: 0 8px 20px -8px rgba(212, 245, 90, 0.7);
+  transform: translateY(-2px);
+}
+
+/* Nomor urut besar sebagai hiasan */
+.rec-num {
+  position: absolute;
+  right: 18px;
+  bottom: 6px;
+  z-index: 0;
+  font-size: 72px;
+  line-height: 1;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.04);
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Judul bagian hasil */
+.rec-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 28px 0 22px;
+}
+.rec-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+}
+.rec-head .rec-spark {
+  color: var(--accent, #d4f55a);
+}
+.rec-head span.rec-tip {
+  font-size: 13px;
+  opacity: 0.6;
+}
+
+@media (max-width: 760px) {
+  .rec-wrap {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .rec-1 {
+    grid-column: auto;
+  }
+  .rec-num {
+    font-size: 54px;
+  }
+  .rec-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* ===== Ikon judul: badge neon + efek glitch ===== */
+.gi {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
+  isolation: isolate;
+}
+.gi-bg {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    linear-gradient(135deg, rgba(212, 245, 90, 0.22), rgba(59, 108, 255, 0.22)),
+    rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(212, 245, 90, 0.5);
+  box-shadow:
+    0 0 20px rgba(212, 245, 90, 0.35),
+    inset 0 0 14px rgba(212, 245, 90, 0.15);
+  animation: gi-pulse 2.4s ease-in-out infinite;
+}
+/* titik kecil yang mengorbit badge */
+.gi-orbit {
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  animation: gi-spin 5s linear infinite;
+  pointer-events: none;
+}
+.gi-orbit::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  margin-left: -2.5px;
+  border-radius: 50%;
+  background: var(--accent, #d4f55a);
+  box-shadow: 0 0 8px var(--accent, #d4f55a);
+}
+.gi-ic {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  z-index: 1;
+}
+.gi-base {
+  color: var(--accent, #d4f55a);
+  z-index: 3;
+  filter: drop-shadow(0 0 6px rgba(212, 245, 90, 0.7));
+  animation: gi-jitter 2.8s infinite steps(1);
+}
+.gi-r {
+  color: #ff2e63;
+  mix-blend-mode: screen;
+  z-index: 2;
+  animation: gi-slice-r 2.8s infinite steps(1);
+}
+.gi-c {
+  color: #18e6ff;
+  mix-blend-mode: screen;
+  z-index: 2;
+  animation: gi-slice-c 2.8s infinite steps(1);
+}
+.rec-head:hover .gi-base,
+.rec-head:hover .gi-r,
+.rec-head:hover .gi-c {
+  animation-duration: 0.9s;
+}
+
+@keyframes gi-slice-r {
+  0%, 86%, 100% { transform: translate(0, 0); clip-path: inset(0); opacity: 0; }
+  88% { transform: translate(-4px, 1px); clip-path: inset(8% 0 58% 0); opacity: 1; }
+  91% { transform: translate(3px, -1px); clip-path: inset(52% 0 10% 0); opacity: 1; }
+  94% { transform: translate(-2px, 0); clip-path: inset(28% 0 34% 0); opacity: 1; }
+  97% { transform: translate(0, 0); clip-path: inset(0); opacity: 0; }
+}
+@keyframes gi-slice-c {
+  0%, 86%, 100% { transform: translate(0, 0); clip-path: inset(0); opacity: 0; }
+  88% { transform: translate(4px, -1px); clip-path: inset(55% 0 12% 0); opacity: 1; }
+  91% { transform: translate(-3px, 1px); clip-path: inset(10% 0 56% 0); opacity: 1; }
+  94% { transform: translate(2px, 0); clip-path: inset(34% 0 28% 0); opacity: 1; }
+  97% { transform: translate(0, 0); clip-path: inset(0); opacity: 0; }
+}
+@keyframes gi-jitter {
+  0%, 86%, 100% { transform: translate(0, 0) skewX(0); }
+  89% { transform: translate(1px, 0) skewX(-8deg); }
+  92% { transform: translate(-1px, 1px) skewX(6deg); }
+  95% { transform: translate(0, 0) skewX(0); }
+}
+@keyframes gi-pulse {
+  0%, 100% { box-shadow: 0 0 16px rgba(212, 245, 90, 0.25), inset 0 0 12px rgba(212, 245, 90, 0.1); }
+  50% { box-shadow: 0 0 28px rgba(212, 245, 90, 0.5), inset 0 0 16px rgba(212, 245, 90, 0.22); }
+}
+@keyframes gi-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Teks judul ikut berkedip halus sesuai ritme glitch */
+.rec-title-text {
+  animation: rec-text-glitch 2.8s infinite steps(1);
+}
+@keyframes rec-text-glitch {
+  0%, 86%, 100% { text-shadow: none; transform: translateX(0); }
+  89% { text-shadow: -2px 0 #ff2e63, 2px 0 #18e6ff; transform: translateX(1px); }
+  92% { text-shadow: 2px 0 #ff2e63, -2px 0 #18e6ff; transform: translateX(-1px); }
+  95% { text-shadow: none; transform: translateX(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gi-bg, .gi-orbit, .gi-base, .gi-r, .gi-c, .rec-title-text { animation: none; }
+  .gi-r, .gi-c { opacity: 0; }
+}

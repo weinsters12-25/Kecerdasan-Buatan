@@ -21,6 +21,8 @@ import {
   Keyboard,
   LibraryBig,
   Network,
+  Crown,
+  Zap,
 } from "lucide-react";
 import PageShell from "./components/PageShell";
 import BookCard from "./components/BookCard";
@@ -31,6 +33,7 @@ import Marquee from "./components/Marquee";
 import RakHero from "./components/RakHero";
 import ModeSwitch from "./components/ModeSwitch";
 import StatCards from "./components/StatCards";
+import GlitchBadge from "./components/GlitchBadge";
 import { gsap, useGSAP, SplitText, bolehAnimasi } from "./lib/gsap";
 import {
   cariTeks,
@@ -40,7 +43,7 @@ import {
   getTerbaik,
   hueDariTeks,
 } from "./lib/api";
-import GlitchBadge from "./components/GlitchBadge";
+import "./rekomendasi.css";
 
 const PLACEHOLDER = [
   "saya ingin belajar koding python",
@@ -48,6 +51,10 @@ const PLACEHOLDER = [
   "jurnal metode penelitian kuantitatif",
   "strategi memulai bisnis kecil",
 ];
+
+/* Kunci penyimpanan sesi: hasil pencarian tetap ada saat user kembali dari halaman detail */
+const KUNCI_STATE = "rekomendasi-state-v1";
+const KUNCI_SCROLL = "rekomendasi-scroll-v1";
 
 /* Dropdown buku kustom: bisa dicari, animasi buka-tutup */
 function PilihBuku({ daftar, value, onChange }) {
@@ -147,6 +154,51 @@ function PilihBuku({ daftar, value, onChange }) {
   );
 }
 
+/* Ikon judul dengan efek glitch (lapisan merah + cyan yang bergeser berkala) */
+function GlitchIcon({ size = 22 }) {
+  return (
+    <span className="gi" aria-hidden="true">
+      <span className="gi-bg" />
+      <span className="gi-orbit" />
+      <Zap className="gi-ic gi-r" size={size} />
+      <Zap className="gi-ic gi-c" size={size} />
+      <Zap className="gi-ic gi-base" size={size} strokeWidth={2.4} fill="currentColor" />
+    </span>
+  );
+}
+
+/* Susunan premium 3 rekomendasi: #1 lebar penuh, #2 dan #3 berdampingan */
+const wadahVar = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.12, delayChildren: 0.05 } },
+};
+const itemVar = {
+  hidden: { opacity: 0, y: 26, scale: 0.97 },
+  show: { opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 220, damping: 24 } },
+};
+
+function HasilRekomendasi({ top }) {
+  return (
+    <motion.div className="rec-wrap" variants={wadahVar} initial="hidden" animate="show">
+      {top.map((b, i) => (
+        <motion.div key={b.id_buku} className={`rec-slot rec-${i + 1}`} variants={itemVar}>
+          {i === 0 && (
+            <span className="rec-crown">
+              <Crown size={13} /> Paling cocok
+            </span>
+          )}
+          <div className="rec-frame">
+            <BookCard buku={b} rank={i + 1} />
+          </div>
+          <span className="rec-num" aria-hidden="true">
+            0{i + 1}
+          </span>
+        </motion.div>
+      ))}
+    </motion.div>
+  );
+}
+
 export default function Home() {
   const [mode, setMode] = useState("text"); // cara mencari: "text" | "dropdown"
   const [mesin, setMesin] = useState("hybrid"); // mesin pencarian: "hybrid" | "tfidf"
@@ -160,6 +212,7 @@ export default function Home() {
   const [linkSemua, setLinkSemua] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [siap, setSiap] = useState(false); // true setelah state pulih dari sessionStorage
 
   const [fokus, setFokus] = useState(false);
   const [phIdx, setPhIdx] = useState(0);
@@ -171,6 +224,72 @@ export default function Home() {
   const hasilRef = useRef(null);
   const reqId = useRef(0);
   const perluGulir = useRef(false);
+  const perluPulihScroll = useRef(false);
+  const scrollY = useRef(0);
+
+  /* ===== Pulihkan hasil pencarian terakhir (mis. saat tombol "kembali" ditekan) ===== */
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(KUNCI_STATE);
+      if (raw) {
+        const s = JSON.parse(raw);
+        if (s.mode) setMode(s.mode);
+        if (s.inputTeks) setInputTeks(s.inputTeks);
+        if (s.idBuku) setIdBuku(String(s.idBuku));
+        if (s.linkSemua) setLinkSemua(s.linkSemua);
+        if (s.hasil) {
+          setHasil(s.hasil);
+          perluPulihScroll.current = true;
+        }
+      }
+    } catch {}
+    setSiap(true);
+  }, []);
+
+  /* ===== Simpan setiap kali hasil / input berubah ===== */
+  useEffect(() => {
+    if (!siap) return;
+    try {
+      if (hasil) {
+        sessionStorage.setItem(
+          KUNCI_STATE,
+          JSON.stringify({ mode, inputTeks, idBuku, linkSemua, hasil })
+        );
+      } else {
+        sessionStorage.removeItem(KUNCI_STATE);
+        sessionStorage.removeItem(KUNCI_SCROLL);
+      }
+    } catch {}
+  }, [siap, hasil, mode, inputTeks, idBuku, linkSemua]);
+
+  /* ===== Catat posisi gulir, simpan saat meninggalkan halaman ===== */
+  useEffect(() => {
+    const onScroll = () => {
+      scrollY.current = window.scrollY;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      try {
+        sessionStorage.setItem(KUNCI_SCROLL, String(scrollY.current));
+      } catch {}
+    };
+  }, []);
+
+  /* ===== Kembalikan posisi gulir setelah hasil dipulihkan ===== */
+  useEffect(() => {
+    if (!siap || !hasil || !perluPulihScroll.current) return;
+    perluPulihScroll.current = false;
+    let y = 0;
+    try {
+      y = parseInt(sessionStorage.getItem(KUNCI_SCROLL) || "0", 10) || 0;
+    } catch {}
+    const t = setTimeout(() => {
+      if (y > 0) window.scrollTo({ top: y, behavior: "auto" });
+      else hasilRef.current?.scrollIntoView({ behavior: "auto", block: "start" });
+    }, 120);
+    return () => clearTimeout(t);
+  }, [siap, hasil]);
 
   useEffect(() => {
     // kategori dimuat dulu agar warna tiap kategori sudah terdaftar
@@ -182,14 +301,15 @@ export default function Home() {
           .then((data) => {
             if (Array.isArray(data) && data.length > 0) {
               setDaftarBuku(data);
-              setIdBuku(data[0].id_buku.toString());
+              // jangan timpa pilihan yang sudah dipulihkan
+              setIdBuku((prev) => prev || data[0].id_buku.toString());
             }
           })
           .catch((err) => console.error("Gagal memuat daftar buku", err));
       });
     getTerbaik()
-  .then((d) => d && Array.isArray(d.buku) && setTerbaik(d))
-  .catch(() => {});
+      .then((d) => d && Array.isArray(d.buku) && setTerbaik(d))
+      .catch(() => {});
   }, []);
 
   /* ===== Animasi GSAP: hero ===== */
@@ -322,7 +442,7 @@ export default function Home() {
       {/* ===== Hero ===== */}
       <section className="hero" ref={heroRef}>
         <div className="hero-copy">
-<GlitchBadge />
+          <GlitchBadge />
           <h1 className="hero-title" ref={titleRef}>
             Temukan bacaan yang nyambung dengan <span className="hl">minatmu.</span>
           </h1>
@@ -620,15 +740,14 @@ export default function Home() {
 
               {top.length > 0 && (
                 <>
-                  <div className="res-head">
-                    <h2>3 rekomendasi terbaik</h2>
-                    <span>Ketuk kartu untuk melihat detail</span>
+                  <div className="rec-head">
+                    <h2 className="rec-title">
+                      <GlitchIcon /> <span className="rec-title-text">3 rekomendasi terbaik</span>
+                    </h2>
+                    <span className="rec-tip">Ketuk kartu untuk melihat detail</span>
                   </div>
-                  <Reveal className="grid" deps={[top]}>
-                    {top.map((b, i) => (
-                      <BookCard key={b.id_buku} buku={b} rank={i + 1} />
-                    ))}
-                  </Reveal>
+
+                  <HasilRekomendasi top={top} />
 
                   {adaSisa && (
                     <div className="more">
@@ -657,29 +776,29 @@ export default function Home() {
 
       {/* ===== Pilihan terbaik perpustakaan ===== */}
       {terbaik.buku.length > 0 && (
-  <section className="results terbaik" id="terbaik" style={{ paddingTop: 0, scrollMarginTop: 24 }}>
-    <div className="res-head">
-      <div>
-        <h2>
-          <Trophy size={20} style={{ verticalAlign: "-3px", color: "var(--accent)" }} />{" "}
-          {terbaik.judul || "Pilihan terbaik perpustakaan"}
-        </h2>
-        <p className="res-sub">
-          {terbaik.subjudul ||
-            "Buku yang isinya paling banyak berkaitan dengan koleksi lain, cocok sebagai titik awal membaca."}
-        </p>
-      </div>
-      <Link href="/peta" className="link-more">
-        <Network size={14} style={{ verticalAlign: "-2px" }} /> Lihat di peta →
-      </Link>
-    </div>
-    <Reveal className="grid" deps={[terbaik]}>
-      {terbaik.buku.map((b, i) => (
-        <BookCard key={b.id_buku} buku={b} rank={i + 1} />
-      ))}
-    </Reveal>
-  </section>
-)}
+        <section className="results terbaik" id="terbaik" style={{ paddingTop: 0, scrollMarginTop: 24 }}>
+          <div className="res-head">
+            <div>
+              <h2>
+                <Trophy size={20} style={{ verticalAlign: "-3px", color: "var(--accent)" }} />{" "}
+                {terbaik.judul || "Pilihan terbaik perpustakaan"}
+              </h2>
+              <p className="res-sub">
+                {terbaik.subjudul ||
+                  "Buku yang isinya paling banyak berkaitan dengan koleksi lain, cocok sebagai titik awal membaca."}
+              </p>
+            </div>
+            <Link href="/peta" className="link-more">
+              <Network size={14} style={{ verticalAlign: "-2px" }} /> Lihat di peta →
+            </Link>
+          </div>
+          <Reveal className="grid" deps={[terbaik]}>
+            {terbaik.buku.map((b, i) => (
+              <BookCard key={b.id_buku} buku={b} rank={i + 1} />
+            ))}
+          </Reveal>
+        </section>
+      )}
 
       {/* ===== Rak kategori ===== */}
       {daftarKat.length > 0 && (
